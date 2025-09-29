@@ -9,7 +9,8 @@ import { Review } from './entities/review.entity';
 import { Repository } from 'typeorm';
 import { Flight } from '../flights/entities/flight.entity';
 import { Booking } from '../bookings/entities/booking.entity';
-import { PaymentStatus } from '../common/constants';
+import { PaymentStatus, UserRole } from '../common/constants';
+import { UpdateReviewDto } from './dto/update-review.dto';
 
 @Injectable()
 export class ReviewsService {
@@ -59,6 +60,31 @@ export class ReviewsService {
       relations: { user: true, flight: true },
     });
     return { total, page, limit, items: rows };
+  }
+
+  async getById(id: string) {
+    const review = await this.repo.findOne({ where: { id }, relations: { user: true, flight: true } });
+    if (!review) throw new NotFoundException('Review not found');
+    return review;
+  }
+
+  async update(id: string, userId: string, dto: UpdateReviewDto, role: UserRole) {
+    const review = await this.repo.findOne({ where: { id }, relations: { user: true } });
+    if (!review) throw new NotFoundException('Review not found');
+
+    const isAdmin = [UserRole.ADMIN, UserRole.SUPER_ADMIN].includes(role);
+    if (!isAdmin && review.user.id !== userId) {
+      throw new ForbiddenException('Cannot edit others reviews');
+    }
+
+    if (dto.rating !== undefined) {
+      review.rating = dto.rating;
+    }
+    if (dto.comment !== undefined) {
+      review.comment = dto.comment;
+    }
+
+    return this.repo.save(review);
   }
 
   async remove(id: string, userId: string, allowAdmin: boolean) {

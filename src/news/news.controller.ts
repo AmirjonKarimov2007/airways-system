@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Param, Post, Req, UseGuards } from '@nestjs/common';
+import { Body, Controller, Delete, Get, Param, Patch, Post, Req, UseGuards } from '@nestjs/common';
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
 import { NewsService } from './news.service';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
@@ -34,7 +34,15 @@ export class NewsController {
   @ApiBearerAuth()
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles(UserRole.ADMIN, UserRole.SUPER_ADMIN)
-  @Post()
+  @Get('admin/:id')
+  getAdmin(@Param('id') id: string) {
+    return this.service.getById(id);
+  }
+
+  @ApiBearerAuth()
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(UserRole.ADMIN, UserRole.SUPER_ADMIN)
+  @Post('admin')
   create(@Req() req: any, @Body() dto: CreateNewsDto) {
     return this.service.create(req.user.sub, dto);
   }
@@ -42,7 +50,7 @@ export class NewsController {
   @ApiBearerAuth()
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles(UserRole.ADMIN, UserRole.SUPER_ADMIN)
-  @Post(':id')
+  @Patch('admin/:id')
   update(@Param('id') id: string, @Body() dto: UpdateNewsDto) {
     return this.service.update(id, dto);
   }
@@ -50,7 +58,7 @@ export class NewsController {
   @ApiBearerAuth()
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles(UserRole.ADMIN, UserRole.SUPER_ADMIN)
-  @Post(':id/delete')
+  @Delete('admin/:id')
   remove(@Param('id') id: string) {
     return this.service.remove(id);
   }

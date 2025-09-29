@@ -24,6 +24,7 @@ import { NewsController } from '../src/news/news.controller';
 import { NewsService } from '../src/news/news.service';
 import { LoyaltyController } from '../src/loyalty/loyalty.controller';
 import { LoyaltyService } from '../src/loyalty/loyalty.service';
+import { TicketsController } from '../src/tickets/tickets.controller';
 import { UserRole } from '../src/common/constants';
 
 describe('AuthController', () => {
@@ -101,6 +102,7 @@ describe('UsersController', () => {
       findById: jest.fn(),
       updateProfile: jest.fn(),
       adjustBalance: jest.fn(),
+      delete: jest.fn(),
     };
     controller = new UsersController(service);
   });
@@ -128,6 +130,14 @@ describe('UsersController', () => {
     service.adjustBalance.mockResolvedValue(expected);
     await expect(controller.adjustBalance('user-2', dto)).resolves.toBe(expected);
     expect(service.adjustBalance).toHaveBeenCalledWith('user-2', dto.amount);
+  });
+
+  it('removeMe', async () => {
+    const req = { user: { sub: 'user-1' } } as any;
+    const expected = { ok: true } as any;
+    service.delete.mockResolvedValue(expected);
+    await expect(controller.removeMe(req)).resolves.toBe(expected);
+    expect(service.delete).toHaveBeenCalledWith('user-1');
   });
 });
 
@@ -286,14 +296,25 @@ describe('BookingsController', () => {
 
   beforeEach(() => {
     service = {
+      listAll: jest.fn(),
       myBookings: jest.fn(),
+      findById: jest.fn(),
       create: jest.fn(),
       cancel: jest.fn(),
       seatMap: jest.fn(),
       assignSeat: jest.fn(),
       changeSeat: jest.fn(),
+      updateByAdmin: jest.fn(),
+      removeByAdmin: jest.fn(),
     };
     controller = new BookingsController(service);
+  });
+
+  it('list all bookings (admin)', async () => {
+    const expected = { total: 0 } as any;
+    service.listAll.mockResolvedValue(expected);
+    await expect(controller.listAll(1, 20)).resolves.toBe(expected);
+    expect(service.listAll).toHaveBeenCalledWith(1, 20);
   });
 
   it('my bookings', async () => {
@@ -345,6 +366,27 @@ describe('BookingsController', () => {
     service.changeSeat.mockResolvedValue(expected);
     await expect(controller.changeSeat(req, 'booking-1', dto)).resolves.toBe(expected);
     expect(service.changeSeat).toHaveBeenCalledWith('user-1', 'booking-1', dto);
+  });
+
+  it('get booking by id (admin)', async () => {
+    const booking = { id: 'booking-1' } as any;
+    service.findById.mockResolvedValue(booking);
+    await expect(controller.getById('booking-1')).resolves.toBe(booking);
+    expect(service.findById).toHaveBeenCalledWith('booking-1');
+  });
+
+  it('update booking by admin', async () => {
+    const updated = { id: 'booking-1', paymentStatus: 'PAID' } as any;
+    service.updateByAdmin.mockResolvedValue(updated);
+    await expect(controller.updateByAdmin('booking-1', { paymentStatus: 'PAID' } as any)).resolves.toBe(updated);
+    expect(service.updateByAdmin).toHaveBeenCalledWith('booking-1', { paymentStatus: 'PAID' });
+  });
+
+  it('remove booking by admin', async () => {
+    const expected = { id: 'booking-1' } as any;
+    service.removeByAdmin.mockResolvedValue(expected);
+    await expect(controller.removeByAdmin('booking-1')).resolves.toBe(expected);
+    expect(service.removeByAdmin).toHaveBeenCalledWith('booking-1');
   });
 });
 
@@ -574,9 +616,10 @@ describe('Locations controllers', () => {
   });
 
   it('cities CRUD', async () => {
+    const countryId = '123e4567-e89b-12d3-a456-426614174000';
     service.listCities.mockResolvedValue([[{ id: 'city' }], 1] as any);
-    await expect(cities.list(1, 10, 'country')).resolves.toEqual({ total: 1, page: 1, limit: 10, items: [{ id: 'city' }] });
-    expect(service.listCities).toHaveBeenCalledWith(1, 10, 'country');
+    await expect(cities.list(1, 10, countryId)).resolves.toEqual({ total: 1, page: 1, limit: 10, items: [{ id: 'city' }] });
+    expect(service.listCities).toHaveBeenCalledWith(1, 10, countryId);
 
     const city = { id: 'city' } as any;
     service.getCity.mockResolvedValue(city);
@@ -598,9 +641,10 @@ describe('Locations controllers', () => {
   });
 
   it('airports CRUD', async () => {
+    const cityId = '123e4567-e89b-42d3-a456-426614174001';
     service.listAirports.mockResolvedValue([[{ id: 'airport' }], 1] as any);
-    await expect(airports.list(1, 10, 'city')).resolves.toEqual({ total: 1, page: 1, limit: 10, items: [{ id: 'airport' }] });
-    expect(service.listAirports).toHaveBeenCalledWith(1, 10, 'city');
+    await expect(airports.list(1, 10, cityId)).resolves.toEqual({ total: 1, page: 1, limit: 10, items: [{ id: 'airport' }] });
+    expect(service.listAirports).toHaveBeenCalledWith(1, 10, cityId);
 
     const airport = { id: 'airport' } as any;
     service.getAirport.mockResolvedValue(airport);
@@ -665,6 +709,8 @@ describe('ReviewsController', () => {
       post: jest.fn(),
       listAll: jest.fn(),
       listForFlight: jest.fn(),
+      getById: jest.fn(),
+      update: jest.fn(),
       remove: jest.fn(),
     };
     controller = new ReviewsController(service);
@@ -683,14 +729,30 @@ describe('ReviewsController', () => {
     await expect(controller.listAll(1, 10)).resolves.toEqual({ total: 0 });
   });
 
+  it('get review by id', async () => {
+    const review = { id: 'review' } as any;
+    service.getById.mockResolvedValue(review);
+    await expect(controller.getById('review')).resolves.toBe(review);
+    expect(service.getById).toHaveBeenCalledWith('review');
+  });
+
   it('list by flight', async () => {
     service.listForFlight.mockResolvedValue({ total: 0 } as any);
     await expect(controller.listByFlight('flight-1', 1, 10)).resolves.toEqual({ total: 0 });
     expect(service.listForFlight).toHaveBeenCalledWith('flight-1', 1, 10);
   });
 
+  it('update review', async () => {
+    const req = { user: { sub: 'user-1', role: 'USER' } } as any;
+    const dto = { comment: 'Updated' } as any;
+    const result = { id: 'review', comment: 'Updated' } as any;
+    service.update.mockResolvedValue(result);
+    await expect(controller.update(req, 'review', dto)).resolves.toBe(result);
+    expect(service.update).toHaveBeenCalledWith('review', 'user-1', dto, 'USER');
+  });
+
   it('remove review', async () => {
-    const req = { user: { sub: 'admin' } } as any;
+    const req = { user: { sub: 'admin', role: 'ADMIN' } } as any;
     service.remove.mockResolvedValue({ id: 'review' } as any);
     await expect(controller.remove(req, 'review')).resolves.toEqual({ id: 'review' });
     expect(service.remove).toHaveBeenCalledWith('review', 'admin', true);
@@ -706,6 +768,7 @@ describe('NewsController', () => {
       list: jest.fn(),
       getBySlug: jest.fn(),
       listAdmin: jest.fn(),
+      getById: jest.fn(),
       create: jest.fn(),
       update: jest.fn(),
       remove: jest.fn(),
@@ -730,6 +793,13 @@ describe('NewsController', () => {
     await expect(controller.listAdmin()).resolves.toBe(expected);
   });
 
+  it('get admin by id', async () => {
+    const news = { id: 'news' } as any;
+    service.getById.mockResolvedValue(news);
+    await expect(controller.getAdmin('news')).resolves.toBe(news);
+    expect(service.getById).toHaveBeenCalledWith('news');
+  });
+
   it('create/update/remove', async () => {
     const req = { user: { sub: 'admin' } } as any;
     const dto = { title: 'News' } as any;
@@ -751,7 +821,16 @@ describe('LoyaltyController', () => {
   let service: any;
 
   beforeEach(() => {
-    service = { get: jest.fn(), redeemPoints: jest.fn(), earnPoints: jest.fn() };
+    service = {
+      get: jest.fn(),
+      redeemPoints: jest.fn(),
+      earnPoints: jest.fn(),
+      list: jest.fn(),
+      getTransaction: jest.fn(),
+      createManual: jest.fn(),
+      updateTransaction: jest.fn(),
+      removeTransaction: jest.fn(),
+    };
     controller = new LoyaltyController(service);
   });
 
@@ -769,5 +848,91 @@ describe('LoyaltyController', () => {
     service.redeemPoints.mockResolvedValue(expected);
     await expect(controller.redeem(req, 50)).resolves.toBe(expected);
     expect(service.redeemPoints).toHaveBeenCalledWith('user-1', 50);
+  });
+
+  it('list transactions (admin)', async () => {
+    service.list.mockResolvedValue({ total: 0 } as any);
+    await expect(controller.list(1, 20, '123e4567-e89b-12d3-a456-426614174000')).resolves.toEqual({ total: 0 });
+    expect(service.list).toHaveBeenCalledWith(1, 20, '123e4567-e89b-12d3-a456-426614174000');
+  });
+
+  it('get transaction', async () => {
+    const txn = { id: 'txn-1' } as any;
+    service.getTransaction.mockResolvedValue(txn);
+    await expect(controller.getTransaction('txn-1')).resolves.toBe(txn);
+    expect(service.getTransaction).toHaveBeenCalledWith('txn-1');
+  });
+
+  it('create manual transaction', async () => {
+    const dto = { userId: 'user', type: 'EARN', points: 100 } as any;
+    const txn = { id: 'txn-1' } as any;
+    service.createManual.mockResolvedValue(txn);
+    await expect(controller.createTransaction(dto)).resolves.toBe(txn);
+    expect(service.createManual).toHaveBeenCalledWith(dto);
+  });
+
+  it('update transaction', async () => {
+    const txn = { id: 'txn-1', reason: 'Updated' } as any;
+    service.updateTransaction.mockResolvedValue(txn);
+    await expect(controller.updateTransaction('txn-1', { reason: 'Updated' })).resolves.toBe(txn);
+    expect(service.updateTransaction).toHaveBeenCalledWith('txn-1', 'Updated');
+  });
+
+  it('remove transaction', async () => {
+    const res = { id: 'txn-1' } as any;
+    service.removeTransaction.mockResolvedValue(res);
+    await expect(controller.removeTransaction('txn-1')).resolves.toBe(res);
+    expect(service.removeTransaction).toHaveBeenCalledWith('txn-1');
+  });
+});
+
+describe('TicketsController', () => {
+  let controller: TicketsController;
+  let service: any;
+
+  beforeEach(() => {
+    service = {
+      create: jest.fn(),
+      listMine: jest.fn(),
+      listAll: jest.fn(),
+      findById: jest.fn(),
+      remove: jest.fn(),
+    };
+    controller = new TicketsController(service);
+  });
+
+  it('create ticket', async () => {
+    const req = { user: { sub: 'user-1' } } as any;
+    const dto = { bookingId: 'booking-1' } as any;
+    const ticket = { id: 'ticket-1' } as any;
+    service.create.mockResolvedValue(ticket);
+    await expect(controller.create(req, dto)).resolves.toBe(ticket);
+    expect(service.create).toHaveBeenCalledWith('user-1', dto.bookingId);
+  });
+
+  it('list mine', async () => {
+    const req = { user: { sub: 'user-1' } } as any;
+    service.listMine.mockResolvedValue({ total: 0 } as any);
+    await expect(controller.mine(req, 1, 10)).resolves.toEqual({ total: 0 });
+    expect(service.listMine).toHaveBeenCalledWith('user-1', 1, 10);
+  });
+
+  it('list all (admin)', async () => {
+    service.listAll.mockResolvedValue({ total: 0 } as any);
+    await expect(controller.listAll(1, 20)).resolves.toEqual({ total: 0 });
+    expect(service.listAll).toHaveBeenCalledWith(1, 20);
+  });
+
+  it('get ticket by id', async () => {
+    const ticket = { id: 'ticket-1' } as any;
+    service.findById.mockResolvedValue(ticket);
+    await expect(controller.getById('ticket-1')).resolves.toBe(ticket);
+    expect(service.findById).toHaveBeenCalledWith('ticket-1');
+  });
+
+  it('remove ticket', async () => {
+    service.remove.mockResolvedValue({ id: 'ticket-1' } as any);
+    await expect(controller.remove('ticket-1')).resolves.toEqual({ id: 'ticket-1' });
+    expect(service.remove).toHaveBeenCalledWith('ticket-1');
   });
 });

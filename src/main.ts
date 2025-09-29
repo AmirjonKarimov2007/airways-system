@@ -39,9 +39,11 @@ async function bootstrap() {
 
   const port = Number(process.env.APP_PORT) || 3000;
   await app.listen(port);
-  const url = 'localhost'
-  console.log(`HTTP server listening on ${url}:3000//${apiPrefix}`);
+  const url = await app.getUrl();
+  const normalized = url.replace(/\/$/, '').replace('://[::1]', '://localhost');
   // eslint-disable-next-line no-console
-  console.log(`Swagger docs ready at ${url}:3000/${apiPrefix}/docs`);
+  console.log(`HTTP server listening on ${normalized}/${apiPrefix}`);
+  // eslint-disable-next-line no-console
+  console.log(`Swagger docs ready at ${normalized}/${apiPrefix}/docs`);
 }
 bootstrap();

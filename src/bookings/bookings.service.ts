@@ -7,6 +7,7 @@ import {
 import { InjectRepository } from '@nestjs/typeorm';
 import { Booking } from './entities/booking.entity';
 import { Repository, DataSource, In } from 'typeorm';
+import { User } from '../users/entities/user.entity';
 import { Flight } from '../flights/entities/flight.entity';
 import { Seat } from '../companies/entities/seat.entity';
 import { TravelClass } from '../classes/entities/travel-class.entity';
@@ -16,6 +17,7 @@ import { PaymentStatus } from '../common/constants';
 import { UsersService } from '../users/users.service';
 import { LoyaltyService } from '../loyalty/loyalty.service';
 import { MailService } from '../mail/mail.service';
+import { UpdateBookingAdminDto } from './dto/update-booking.dto';
 import { AssignSeatDto } from './dto/assign-seat.dto';
 import { ChangeSeatDto } from './dto/change-seat.dto';
 
@@ -40,6 +42,43 @@ export class BookingsService {
       take: limit,
     });
     return { total, page, limit, items: rows };
+  }
+
+  async listAll(page = 1, limit = 50) {
+    const [rows, total] = await this.repo.findAndCount({
+      order: { createdAt: 'DESC' },
+      relations: { user: true, flight: true, seat: true, travelClass: true },
+      skip: (page - 1) * limit,
+      take: limit,
+    });
+    return { total, page, limit, items: rows };
+  }
+
+  async findById(id: string) {
+    const booking = await this.repo.findOne({
+      where: { id },
+      relations: { user: true, flight: true, seat: true, travelClass: true },
+      withDeleted: true,
+    });
+    if (!booking) throw new NotFoundException('Booking not found');
+    return booking;
+  }
+
+  async updateByAdmin(id: string, dto: UpdateBookingAdminDto) {
+    const booking = await this.findById(id);
+
+    if (dto.paymentStatus) booking.paymentStatus = dto.paymentStatus;
+    if (dto.price !== undefined) booking.price = dto.price;
+    if (dto.meta !== undefined) booking.meta = dto.meta;
+    if (dto.isRoundTrip !== undefined) booking.isRoundTrip = dto.isRoundTrip;
+
+    return this.repo.save(booking);
+  }
+
+  async removeByAdmin(id: string) {
+    await this.findById(id);
+    await this.repo.softDelete(id);
+    return { id };
   }
 
   async create(userId: string, dto: CreateBookingDto) {
@@ -73,7 +112,10 @@ export class BookingsService {
     await queryRunner.startTransaction('READ COMMITTED');
     try {
       // Re-check with lock by unique index (will throw 23505 if already booked)
-      const price = this.calcPrice(Number(flight.basePrice), Number(klass.multiplier));
+      const baseFare = Number(flight.basePrice);
+      const classSurcharge = Number(klass.basePrice ?? 0);
+      const multiplierFare = this.calcPrice(baseFare, Number(klass.multiplier));
+      const price = Number((multiplierFare + classSurcharge).toFixed(2));
       const redeemPoints = Math.max(0, Math.min(dto.redeemPoints || 0, user.loyaltyPoints));
       const redeemValue = Math.floor(redeemPoints / 100) * 10;
       const finalPrice = Math.max(0, price - redeemValue);
@@ -85,17 +127,26 @@ export class BookingsService {
         travelClass: klass,
         isRoundTrip: !!dto.isRoundTrip,
         price: finalPrice,
-        paymentStatus: PaymentStatus.PENDING,
+        paymentStatus: finalPrice === 0 ? PaymentStatus.PAID : PaymentStatus.PENDING,
         meta: { base: price, redeemPoints, redeemValue, taxes: 0.12 },
       });
       booking = await queryRunner.manager.save(booking);
 
-      const pay = await PaymentMock.charge(finalPrice, { bookingId: booking.id });
-      if (!pay.success) throw new BadRequestException('Payment failed');
+      if (finalPrice > 0) {
+        const pay = await PaymentMock.charge(finalPrice, { bookingId: booking.id });
+        if (!pay.success) throw new BadRequestException('Payment failed');
 
-      booking.paymentStatus = PaymentStatus.PAID;
-      booking.meta = { ...booking.meta, txnId: pay.txnId };
-      await queryRunner.manager.save(booking);
+        booking.paymentStatus = PaymentStatus.PAID;
+        booking.meta = { ...booking.meta, txnId: pay.txnId };
+        await queryRunner.manager.save(booking);
+
+        const currentBalance = Number(user.balance ?? 0);
+        if (currentBalance < finalPrice) {
+          throw new BadRequestException('Insufficient balance');
+        }
+        user.balance = Math.round((currentBalance - finalPrice) * 100) / 100;
+        await queryRunner.manager.save(User, user);
+      }
 
       if (redeemPoints > 0) {
         await this.loyaltyService.redeemPoints(user.id, redeemPoints, queryRunner.manager);

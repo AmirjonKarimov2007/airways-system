@@ -41,6 +41,32 @@ export class TicketsService {
     return { total, page, limit, items };
   }
 
+  async listAll(page = 1, limit = 50) {
+    const [items, total] = await this.ticketsRepo.findAndCount({
+      order: { issuedAt: 'DESC' },
+      relations: { user: true, booking: true },
+      skip: (page - 1) * limit,
+      take: limit,
+    });
+    return { total, page, limit, items };
+  }
+
+  async findById(id: string) {
+    const ticket = await this.ticketsRepo.findOne({
+      where: { id },
+      relations: { user: true, booking: true },
+      withDeleted: true,
+    });
+    if (!ticket) throw new NotFoundException('Ticket not found');
+    return ticket;
+  }
+
+  async remove(id: string) {
+    await this.findById(id);
+    await this.ticketsRepo.delete(id);
+    return { id };
+  }
+
   private async generateCode() {
     for (let i = 0; i < 5; i += 1) {
       const code = `TKT-${crypto.randomUUID().split('-')[0].toUpperCase()}`;

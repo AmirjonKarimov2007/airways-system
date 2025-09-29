@@ -49,6 +49,18 @@ class EnvironmentVariables {
   @IsString()
   @IsOptional()
   JWT_REFRESH_EXPIRES_IN: string = '7d';
+
+  @IsOptional()
+  @IsString()
+  SUPER_ADMIN_USERNAME?: string;
+
+  @IsOptional()
+  @IsString()
+  SUPER_ADMIN_PASSWORD?: string;
+
+  @IsOptional()
+  @IsString()
+  SUPER_ADMIN_EMAIL?: string;
 }
 
 export const validateEnv = (config: Record<string, unknown>) => {

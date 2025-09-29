@@ -1,4 +1,4 @@
-import { Body, Controller, Delete, Get, Param, Patch, Post, Query, UseGuards } from '@nestjs/common';
+import { Body, Controller, Delete, Get, Param, Patch, Post, Query, UseGuards, BadRequestException } from '@nestjs/common';
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
 import { LocationsService } from './locations.service';
 import { CreateCountryDto } from './dto/create-country.dto';
@@ -17,6 +17,14 @@ export class CountriesController {
   async list(@Query('page') page = 1, @Query('limit') limit = 50) {
     const pageNum = Number(page);
     const limitNum = Number(limit);
+
+    if (!Number.isInteger(pageNum) || pageNum < 1) {
+      throw new BadRequestException('page must be a positive integer');
+    }
+    if (!Number.isInteger(limitNum) || limitNum < 1) {
+      throw new BadRequestException('limit must be a positive integer');
+    }
+
     const [items, total] = await this.service.listCountries(pageNum, limitNum);
     return { total, page: pageNum, limit: limitNum, items };
   }

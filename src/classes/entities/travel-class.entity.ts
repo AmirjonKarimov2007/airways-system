@@ -20,6 +20,9 @@ export class TravelClass {
   @Column({ type: 'decimal', precision: 5, scale: 2, default: 1.0 })
   multiplier!: number;
 
+  @Column({ type: 'decimal', precision: 10, scale: 2, default: 0 })
+  basePrice!: number;
+
   @CreateDateColumn()
   createdAt!: Date;
 

@@ -11,4 +11,9 @@ export class CreateTravelClassDto {
   @IsNumber({ allowNaN: false, allowInfinity: false })
   @Min(0.1)
   multiplier!: number;
+
+  @ApiProperty({ minimum: 0, example: 150 })
+  @IsNumber({ allowNaN: false, allowInfinity: false })
+  @Min(0)
+  basePrice!: number;
 }

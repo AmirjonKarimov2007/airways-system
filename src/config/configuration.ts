@@ -16,4 +16,11 @@ export default () => ({
     accessExpiresIn: process.env.JWT_ACCESS_EXPIRES_IN || '15m',
     refreshExpiresIn: process.env.JWT_REFRESH_EXPIRES_IN || '7d',
   },
+  superAdmin: {
+    username: process.env.SUPER_ADMIN_USERNAME || 'amirjonkarimov',
+    password: process.env.SUPER_ADMIN_PASSWORD || '1421',
+    email:
+      process.env.SUPER_ADMIN_EMAIL ||
+      `${(process.env.SUPER_ADMIN_USERNAME || 'amirjonkarimov').replace(/[^a-z0-9]/gi, '').toLowerCase() || 'superadmin'}@airways.local`,
+  },
 });

@@ -1,7 +1,7 @@
-import { Injectable } from '@nestjs/common';
+import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { LoyaltyTransaction } from './entities/loyalty-transaction.entity';
-import { Repository, EntityManager } from 'typeorm';
+import { LoyaltyTransaction, LoyaltyTxnType } from './entities/loyalty-transaction.entity';
+import { Repository, EntityManager, FindManyOptions } from 'typeorm';
 import { User } from '../users/entities/user.entity';
 import { LoyaltyTier } from '../common/constants';
 
@@ -13,6 +13,20 @@ export class LoyaltyService {
     @InjectRepository(User)
     private users: Repository<User>,
   ) {}
+
+  async list(page = 1, limit = 50, userId?: string) {
+    const options: FindManyOptions<LoyaltyTransaction> = {
+      order: { createdAt: 'DESC' },
+      relations: { user: true },
+      skip: (page - 1) * limit,
+      take: limit,
+    };
+    if (userId) {
+      options.where = { user: { id: userId } as any };
+    }
+    const [items, total] = await this.repo.findAndCount(options);
+    return { total, page, limit, items };
+  }
 
   async earnPoints(userId: string, points: number, reason: string, manager?: EntityManager) {
     const em = manager ?? this.repo.manager;
@@ -36,6 +50,48 @@ export class LoyaltyService {
     const user = await this.users.findOneByOrFail({ id: userId });
     const txns = await this.repo.find({ where: { user: { id: userId } as any }, order: { createdAt: 'DESC' }, take: 50 });
     return { points: user.loyaltyPoints, tier: user.tier, history: txns };
+  }
+
+  async getTransaction(id: string) {
+    const txn = await this.repo.findOne({ where: { id }, relations: { user: true } });
+    if (!txn) throw new NotFoundException('Transaction not found');
+    return txn;
+  }
+
+  async createManual(dto: { userId: string; type: LoyaltyTxnType; points: number; reason?: string }) {
+    if (dto.points <= 0) throw new BadRequestException('points must be positive');
+    if (dto.type === 'EARN') {
+      await this.earnPoints(dto.userId, dto.points, dto.reason ?? 'Manual earn');
+    } else {
+      await this.redeemPoints(dto.userId, dto.points, undefined, dto.reason ?? 'Manual redeem');
+    }
+    return this.repo.findOne({
+      where: { user: { id: dto.userId } as any },
+      order: { createdAt: 'DESC' },
+    });
+  }
+
+  async updateTransaction(id: string, reason?: string) {
+    const txn = await this.getTransaction(id);
+    txn.reason = reason;
+    return this.repo.save(txn);
+  }
+
+  async removeTransaction(id: string) {
+    const txn = await this.getTransaction(id);
+    const user = await this.users.findOneByOrFail({ id: txn.user.id });
+    const absolutePoints = Math.abs(txn.points);
+    if (txn.type === 'EARN') {
+      user.loyaltyPoints = Math.max(0, user.loyaltyPoints - absolutePoints);
+    } else {
+      user.loyaltyPoints += absolutePoints;
+    }
+    user.tier = this.computeTier(user.loyaltyPoints);
+    await this.repo.manager.transaction(async (manager) => {
+      await manager.save(User, user);
+      await manager.remove(LoyaltyTransaction, txn);
+    });
+    return { id };
   }
 
   computeTier(points: number): LoyaltyTier {
