@@ -7,7 +7,7 @@
     "start:dev": "nest start --watch",
     "build": "nest build",
     "lint": "eslint . --ext .ts",
-    "test": "jest",
+    "test": "jest --config jest.config.ts",
     "typeorm:run": "ts-node -T ./node_modules/typeorm/cli.js migration:run -d src/database/data-source.ts",
     "typeorm:revert": "ts-node -T ./node_modules/typeorm/cli.js migration:revert -d src/database/data-source.ts",
     "seed": "ts-node -T src/database/seed/seed.ts"
